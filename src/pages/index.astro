@@ -1,4 +1,12 @@
 ---
+import { createSupabaseClient } from "../lib/supabase";
+
+const supabase = createSupabaseClient(Astro.cookies);
+const { data: { user } } = await supabase.auth.getUser();
+if (!user) return Astro.redirect("/register");
+
+const nombre = user.user_metadata?.nombre ?? user.email;
+const userId = user.id;
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL
 const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 ---
@@ -9,7 +17,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lista de Compras · Verdulería</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Poppins:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -17,12 +25,12 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
       --papel: #ffffff; --texto: #1b1b1b; --muted: #7a7a7a;
       --borde: #e0dbd3; --rojo: #c0392b; --sombra: 0 2px 12px rgba(0,0,0,.08);
     }
-    body { font-family: 'DM Sans', sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; }
+    body { font-family: 'Poppins', sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; }
     header { background: var(--verde); color: #fff; padding: 1.2rem 2rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
-    header h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; letter-spacing: .02em; }
+    header h1 { font-family: 'Nunito', sans-serif; font-size: 1.7rem; letter-spacing: .02em; }
     main { max-width: 760px; margin: 2.5rem auto; padding: 0 1.2rem; display: flex; flex-direction: column; gap: 1.8rem; }
     .card { background: var(--papel); border-radius: 12px; box-shadow: var(--sombra); padding: 1.6rem; }
-    .card h2 { font-family: 'Playfair Display', serif; font-size: 1.15rem; margin-bottom: 1.1rem; color: var(--verde); }
+    .card h2 { font-family: 'Nunito', sans-serif; font-size: 1.15rem; margin-bottom: 1.1rem; color: var(--verde); }
     .form-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: .7rem; align-items: end; }
     @media (max-width: 560px) { .form-row { grid-template-columns: 1fr 1fr; } .form-row .btn-add { grid-column: span 2; } }
     label { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; color: var(--muted); font-weight: 500; }
@@ -38,7 +46,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
     .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--verde); }
     .stat-lbl { font-size: .78rem; color: var(--muted); margin-top: .2rem; }
     .lista-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; }
-    .lista-header h2 { font-family: 'Playfair Display', serif; font-size: 1.15rem; color: var(--verde); }
+    .lista-header h2 { font-family: 'Nunito', sans-serif;; font-size: 1.15rem; color: var(--verde); }
     .btn-limpiar { background: none; border: 1.5px solid var(--borde); border-radius: 7px; padding: .35rem .9rem; font-size: .8rem; font-family: inherit; color: var(--muted); cursor: pointer; transition: border-color .2s, color .2s; }
     .btn-limpiar:hover { border-color: var(--rojo); color: var(--rojo); }
     .btn-limpiar-todo:hover { border-color: var(--rojo); color: #fff; background: var(--rojo); }
@@ -79,10 +87,14 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 <body>
 
 <!-- BARRA DE DEBUG: mostrará el estado de conexión y errores -->
-<div id="debug">⏳ Iniciando conexión con Supabase...</div>
+<div id="debug">Iniciando conexión con Supabase...</div>
 
 <header>
-  <h1>🥬 Lista de Compras</h1>
+  <h1>Lista de Compras</h1>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <span style="font-size:.9rem;opacity:.85;">Hola, {nombre}</span>
+    <a href="/logout" style="background:rgba(255,255,255,.15);color:#fff;border:1.5px solid rgba(255,255,255,.3);border-radius:7px;padding:.35rem .9rem;font-size:.85rem;font-family:inherit;text-decoration:none;transition:background .2s;">Cerrar sesión</a>
+  </div>
 </header>
 
 <main>
@@ -131,9 +143,10 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 
 <div id="toast"></div>
 
-<script is:inline define:vars={{ supabaseUrl, supabaseKey }}>
+<script is:inline define:vars={{ supabaseUrl, supabaseKey, userId }}>
   window.__SB_URL = supabaseUrl
   window.__SB_KEY = supabaseKey
+  window.__USER_ID = userId
 </script>
 
 <script type="module">
@@ -148,19 +161,19 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   }
 
   // --- Verificar que las variables llegaron ---
-  log(`URL: ${window.__SB_URL ?? 'UNDEFINED ❌'} | KEY: ${window.__SB_KEY ? window.__SB_KEY.slice(0,20) + '...' : 'UNDEFINED ❌'}`)
+  log(`URL: ${window.__SB_URL ?? 'UNDEFINED'} | KEY: ${window.__SB_KEY ? window.__SB_KEY.slice(0,20) + '...' : 'UNDEFINED ❌'}`)
 
   if (!window.__SB_URL || !window.__SB_KEY) {
-    log('❌ Las variables de entorno no llegaron. Revisá tu .env y reiniciá el servidor.', false)
+    log('Las variables de entorno no llegaron. Revisá tu .env y reiniciá el servidor.', false)
   }
 
   const sb = createClient(window.__SB_URL, window.__SB_KEY)
-  const USER_ID = '00000000-0000-0000-0000-000000000001'
+  const USER_ID = window.__USER_ID
   let globalItems = []
   let editandoId = null
 
   async function cargar() {
-    log('⏳ Consultando tabla lista_compras...')
+    log('Consultando tabla lista_compras...')
     const { data, error } = await sb
       .from('lista_compras')
       .select('*')
@@ -168,12 +181,12 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
       .order('created_at', { ascending: false })
 
     if (error) {
-      log(`❌ Error al cargar: ${error.message} (code: ${error.code})`, false)
+      log(`Error al cargar: ${error.message} (code: ${error.code})`, false)
       mostrarError('Error al cargar: ' + error.message)
       return
     }
 
-    log(`✅ Conectado. ${data.length} item(s) en la tabla.`)
+    log(`Conectado. ${data.length} item(s) en la tabla.`)
     globalItems = data
     render()
     renderStats()
@@ -213,7 +226,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
           <input class="item-check" type="checkbox" ${i.comprado ? 'checked' : ''} data-id="${i.id}" />
           <span class="item-nombre">${esc(i.nombre)}</span>
           ${i.cantidad ? `<span class="item-cantidad">${i.cantidad} ${i.unidad}</span>` : ''}
-          <button class="btn-edit" data-id="${i.id}">✏️</button>
+          <button class="btn-edit" data-id="${i.id}"></button>
           <button class="btn-del"  data-id="${i.id}">✕</button>
         </div>`
     }).join('')
@@ -222,8 +235,8 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
     cont.querySelectorAll('.item-check').forEach(cb => {
       cb.addEventListener('change', async e => {
         const { error } = await sb.from('lista_compras').update({ comprado: e.target.checked }).eq('id', e.target.dataset.id)
-        if (error) { log(`❌ Error al actualizar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
-        log(`✅ Item ${e.target.dataset.id} marcado como ${e.target.checked ? 'comprado' : 'pendiente'}`)
+        if (error) { log(`Error al actualizar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+        log(`Item ${e.target.dataset.id} marcado como ${e.target.checked ? 'comprado' : 'pendiente'}`)
         globalItems.find(i => i.id === e.target.dataset.id).comprado = e.target.checked
         e.target.closest('.item').classList.toggle('comprado', e.target.checked)
         renderStats()
@@ -252,18 +265,18 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
         if (!nombre) return mostrarError('El nombre no puede estar vacío')
         mostrarError('')
 
-        log(`⏳ Guardando cambios en item ${id}...`)
+        log(`Guardando cambios en item ${id}...`)
         const { error } = await sb
           .from('lista_compras')
           .update({ nombre, cantidad, unidad: cantidad ? unidad : null })
           .eq('id', id)
 
         if (error) {
-          log(`❌ Error al editar: ${error.message} (code: ${error.code})`, false)
+          log(`Error al editar: ${error.message} (code: ${error.code})`, false)
           return mostrarError('Error al guardar: ' + error.message)
         }
 
-        log(`✅ Item ${id} editado correctamente.`)
+        log(`Item ${id} editado correctamente.`)
         const item = globalItems.find(i => i.id === id)
         item.nombre   = nombre
         item.cantidad = cantidad
@@ -284,10 +297,10 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
     cont.querySelectorAll('.btn-del').forEach(btn => {
       btn.addEventListener('click', async e => {
         const id = e.currentTarget.dataset.id
-        log(`⏳ Eliminando item ${id}...`)
+        log(`Eliminando item ${id}...`)
         const { error } = await sb.from('lista_compras').delete().eq('id', id)
-        if (error) { log(`❌ Error al eliminar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
-        log(`✅ Item ${id} eliminado.`)
+        if (error) { log(`Error al eliminar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+        log(`Item ${id} eliminado.`)
         globalItems = globalItems.filter(i => i.id !== id)
         if (editandoId === id) editandoId = null
         render()
@@ -310,7 +323,7 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 
     const btn = document.getElementById('btn-agregar')
     btn.disabled = true
-    log(`⏳ Insertando "${nombre}"...`)
+    log(`Insertando "${nombre}"...`)
 
     const { data, error } = await sb
       .from('lista_compras')
@@ -320,11 +333,11 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
 
     btn.disabled = false
     if (error) {
-      log(`❌ Error al insertar: ${error.message} (code: ${error.code})`, false)
+      log(`Error al insertar: ${error.message} (code: ${error.code})`, false)
       return mostrarError('Error al agregar: ' + error.message)
     }
 
-    log(`✅ "${nombre}" insertado con id ${data.id}`)
+    log(`"${nombre}" insertado con id ${data.id}`)
     globalItems = [data, ...globalItems]
     render()
     renderStats()
@@ -341,10 +354,10 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   document.getElementById('btn-limpiar').addEventListener('click', async () => {
     const ids = globalItems.filter(i => i.comprado).map(i => i.id)
     if (!ids.length) return toast('No hay items comprados')
-    log(`⏳ Limpiando ${ids.length} item(s) comprado(s)...`)
+    log(`Limpiando ${ids.length} item(s) comprado(s)...`)
     const { error } = await sb.from('lista_compras').delete().in('id', ids)
-    if (error) { log(`❌ Error al limpiar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
-    log(`✅ ${ids.length} item(s) eliminado(s).`)
+    if (error) { log(`Error al limpiar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+    log(`${ids.length} item(s) eliminado(s).`)
     globalItems = globalItems.filter(i => !i.comprado)
     render()
     renderStats()
@@ -355,10 +368,10 @@ const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
     if (!globalItems.length) return toast('La lista ya está vacía')
     if (!confirm(`¿Borrar los ${globalItems.length} item(s)? Esta acción no se puede deshacer.`)) return
     const ids = globalItems.map(i => i.id)
-    log(`⏳ Eliminando toda la lista (${ids.length} items)...`)
+    log(`Eliminando toda la lista (${ids.length} items)...`)
     const { error } = await sb.from('lista_compras').delete().in('id', ids)
-    if (error) { log(`❌ Error al limpiar todo: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
-    log(`✅ Lista completa eliminada.`)
+    if (error) { log(` Error al limpiar todo: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+    log(`Lista completa eliminada.`)
     globalItems = []
     editandoId = null
     render()
