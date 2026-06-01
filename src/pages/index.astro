@@ -1,0 +1,385 @@
+---
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY
+---
+
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lista de Compras · Verdulería</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --verde: #2d6a4f; --verde-cl: #52b788; --fondo: #f8f5f0;
+      --papel: #ffffff; --texto: #1b1b1b; --muted: #7a7a7a;
+      --borde: #e0dbd3; --rojo: #c0392b; --sombra: 0 2px 12px rgba(0,0,0,.08);
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--fondo); color: var(--texto); min-height: 100vh; }
+    header { background: var(--verde); color: #fff; padding: 1.2rem 2rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+    header h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; letter-spacing: .02em; }
+    main { max-width: 760px; margin: 2.5rem auto; padding: 0 1.2rem; display: flex; flex-direction: column; gap: 1.8rem; }
+    .card { background: var(--papel); border-radius: 12px; box-shadow: var(--sombra); padding: 1.6rem; }
+    .card h2 { font-family: 'Playfair Display', serif; font-size: 1.15rem; margin-bottom: 1.1rem; color: var(--verde); }
+    .form-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: .7rem; align-items: end; }
+    @media (max-width: 560px) { .form-row { grid-template-columns: 1fr 1fr; } .form-row .btn-add { grid-column: span 2; } }
+    label { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; color: var(--muted); font-weight: 500; }
+    input[type="text"], input[type="number"], select { padding: .55rem .75rem; border: 1.5px solid var(--borde); border-radius: 8px; font-size: .95rem; font-family: inherit; background: var(--fondo); transition: border-color .2s; width: 100%; }
+    input:focus, select:focus { outline: none; border-color: var(--verde-cl); }
+    .cantidad-wrap { display: flex; gap: .4rem; }
+    .cantidad-wrap input { flex: 1; min-width: 0; }
+    .cantidad-wrap select { width: 75px; flex-shrink: 0; }
+    .btn-add { background: var(--verde); color: #fff; border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .95rem; font-family: inherit; font-weight: 500; cursor: pointer; transition: background .2s, transform .1s; white-space: nowrap; }
+    .btn-add:hover { background: #235c40; } .btn-add:active { transform: scale(.97); } .btn-add:disabled { opacity: .5; cursor: not-allowed; }
+    .resumen { display: grid; grid-template-columns: repeat(2, 1fr); gap: .9rem; }
+    .stat { background: var(--papel); border-radius: 10px; box-shadow: var(--sombra); padding: 1rem 1.1rem; text-align: center; }
+    .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--verde); }
+    .stat-lbl { font-size: .78rem; color: var(--muted); margin-top: .2rem; }
+    .lista-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; }
+    .lista-header h2 { font-family: 'Playfair Display', serif; font-size: 1.15rem; color: var(--verde); }
+    .btn-limpiar { background: none; border: 1.5px solid var(--borde); border-radius: 7px; padding: .35rem .9rem; font-size: .8rem; font-family: inherit; color: var(--muted); cursor: pointer; transition: border-color .2s, color .2s; }
+    .btn-limpiar:hover { border-color: var(--rojo); color: var(--rojo); }
+    .btn-limpiar-todo:hover { border-color: var(--rojo); color: #fff; background: var(--rojo); }
+    #lista-items { display: flex; flex-direction: column; gap: .5rem; }
+    .item { background: var(--papel); border-radius: 9px; padding: .8rem 1rem; display: flex; align-items: center; gap: .8rem; box-shadow: var(--sombra); transition: opacity .2s, background .2s; animation: entrar .25s ease; }
+    @keyframes entrar { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    .item.comprado { background: #f0f7f4; opacity: .65; }
+    .item.comprado .item-nombre { text-decoration: line-through; color: var(--muted); }
+    .item-check { width: 1.1rem; height: 1.1rem; accent-color: var(--verde); cursor: pointer; flex-shrink: 0; }
+    .item-nombre { flex: 1; font-weight: 500; }
+    .item-cantidad { font-size: .82rem; color: var(--muted); white-space: nowrap; }
+
+    /* --- EDICION INLINE --- */
+    .item.editando { background: #f0faf4; border: 1.5px solid var(--verde-cl); }
+    .edit-form { display: flex; gap: .5rem; align-items: center; flex: 1; flex-wrap: wrap; }
+    .edit-form input[type="text"] { flex: 1; min-width: 100px; padding: .35rem .6rem; font-size: .9rem; }
+    .edit-form input[type="number"] { width: 65px; padding: .35rem .6rem; font-size: .9rem; }
+    .edit-form select { width: 65px; padding: .35rem .4rem; font-size: .9rem; }
+    .btn-edit { background: none; border: 1.5px solid var(--borde); color: var(--muted); border-radius: 6px; padding: .15rem .5rem; font-size: .85rem; cursor: pointer; transition: border-color .2s, color .2s; }
+    .btn-edit:hover { border-color: var(--verde-cl); color: var(--verde); }
+    .btn-save { background: var(--verde); color: #fff; border: none; border-radius: 6px; padding: .25rem .7rem; font-size: .85rem; cursor: pointer; font-family: inherit; }
+    .btn-save:hover { background: #235c40; }
+    .btn-cancel { background: none; border: 1.5px solid var(--borde); color: var(--muted); border-radius: 6px; padding: .25rem .6rem; font-size: .85rem; cursor: pointer; font-family: inherit; }
+    .btn-cancel:hover { border-color: var(--rojo); color: var(--rojo); }
+
+    .btn-del { background: none; border: none; color: var(--borde); font-size: 1.1rem; cursor: pointer; padding: .15rem .3rem; border-radius: 5px; transition: color .2s, background .15s; line-height: 1; }
+    .btn-del:hover { color: var(--rojo); background: #fdf0ef; }
+    .empty { text-align: center; color: var(--muted); padding: 2.5rem 0; font-size: .95rem; }
+    .empty span { font-size: 2.5rem; display: block; margin-bottom: .5rem; }
+    #error { color: var(--rojo); font-size: .88rem; min-height: 1.2em; }
+    #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--verde); color: #fff; padding: .7rem 1.3rem; border-radius: 8px; font-size: .88rem; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.18); opacity: 0; transform: translateY(10px); transition: opacity .25s, transform .25s; pointer-events: none; z-index: 999; }
+    #toast.show { opacity: 1; transform: none; } #toast.error { background: var(--rojo); }
+
+    /* --- DEBUG PANEL --- */
+    #debug { position: fixed; top: 0; left: 0; right: 0; background: #1e1e1e; color: #0f0; font-family: monospace; font-size: .75rem; padding: .4rem 1rem; z-index: 9999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+
+<!-- BARRA DE DEBUG: mostrará el estado de conexión y errores -->
+<div id="debug">⏳ Iniciando conexión con Supabase...</div>
+
+<header>
+  <h1>🥬 Lista de Compras</h1>
+</header>
+
+<main>
+  <p id="error"></p>
+
+  <div class="card">
+    <h2>Agregar producto</h2>
+    <div class="form-row">
+      <label>
+        Verdura / Producto
+        <input type="text" id="inp-nombre" placeholder="ej. Zanahoria" maxlength="60" />
+      </label>
+      <label>
+        Cantidad
+        <div class="cantidad-wrap">
+          <input type="number" id="inp-cantidad" placeholder="1" min="0" step="0.01" />
+          <select id="inp-unidad">
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="u">u</option>
+          </select>
+        </div>
+      </label>
+      <button class="btn-add" id="btn-agregar">+ Agregar</button>
+    </div>
+  </div>
+
+  <div class="resumen">
+    <div class="stat"><div class="stat-val" id="stat-total">0</div><div class="stat-lbl">productos</div></div>
+    <div class="stat"><div class="stat-val" id="stat-comprados">0</div><div class="stat-lbl">ya comprados</div></div>
+  </div>
+
+  <div class="card">
+    <div class="lista-header">
+      <h2>Lista</h2>
+      <div style="display:flex;gap:.5rem;">
+        <button class="btn-limpiar" id="btn-limpiar">Limpiar comprados</button>
+        <button class="btn-limpiar btn-limpiar-todo" id="btn-limpiar-todo">🗑 Limpiar todo</button>
+      </div>
+    </div>
+    <div id="lista-items">
+      <div class="empty"><span>🛒</span>La lista está vacía</div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script is:inline define:vars={{ supabaseUrl, supabaseKey }}>
+  window.__SB_URL = supabaseUrl
+  window.__SB_KEY = supabaseKey
+</script>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+  const dbg = document.getElementById('debug')
+  function log(msg, ok = true) {
+    dbg.style.background = ok ? '#1e1e1e' : '#3b0000'
+    dbg.style.color = ok ? '#0f0' : '#ff6b6b'
+    dbg.textContent = msg
+    console.log('[Supabase]', msg)
+  }
+
+  // --- Verificar que las variables llegaron ---
+  log(`URL: ${window.__SB_URL ?? 'UNDEFINED ❌'} | KEY: ${window.__SB_KEY ? window.__SB_KEY.slice(0,20) + '...' : 'UNDEFINED ❌'}`)
+
+  if (!window.__SB_URL || !window.__SB_KEY) {
+    log('❌ Las variables de entorno no llegaron. Revisá tu .env y reiniciá el servidor.', false)
+  }
+
+  const sb = createClient(window.__SB_URL, window.__SB_KEY)
+  const USER_ID = '00000000-0000-0000-0000-000000000001'
+  let globalItems = []
+  let editandoId = null
+
+  async function cargar() {
+    log('⏳ Consultando tabla lista_compras...')
+    const { data, error } = await sb
+      .from('lista_compras')
+      .select('*')
+      .eq('user_id', USER_ID)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      log(`❌ Error al cargar: ${error.message} (code: ${error.code})`, false)
+      mostrarError('Error al cargar: ' + error.message)
+      return
+    }
+
+    log(`✅ Conectado. ${data.length} item(s) en la tabla.`)
+    globalItems = data
+    render()
+    renderStats()
+  }
+
+  function render() {
+    const cont = document.getElementById('lista-items')
+    if (!globalItems.length) {
+      cont.innerHTML = '<div class="empty"><span>🛒</span>La lista está vacía</div>'
+      return
+    }
+
+    cont.innerHTML = globalItems.map(i => {
+      if (i.id === editandoId) {
+        // --- MODO EDICIÓN INLINE ---
+        return `
+          <div class="item editando" data-id="${i.id}">
+            <input class="item-check" type="checkbox" ${i.comprado ? 'checked' : ''} data-id="${i.id}" />
+            <div class="edit-form">
+              <input type="text" class="edit-nombre" value="${esc(i.nombre)}" maxlength="60" />
+              <input type="number" class="edit-cantidad" value="${i.cantidad ?? ''}" min="0" step="0.01" placeholder="cant." />
+              <select class="edit-unidad">
+                <option value="kg" ${i.unidad === 'kg' ? 'selected' : ''}>kg</option>
+                <option value="g"  ${i.unidad === 'g'  ? 'selected' : ''}>g</option>
+                <option value="u"  ${i.unidad === 'u'  ? 'selected' : ''}>u</option>
+              </select>
+              <button class="btn-save" data-id="${i.id}">Guardar</button>
+              <button class="btn-cancel">Cancelar</button>
+            </div>
+            <button class="btn-del" data-id="${i.id}">✕</button>
+          </div>`
+      }
+
+      // --- MODO LECTURA ---
+      return `
+        <div class="item ${i.comprado ? 'comprado' : ''}" data-id="${i.id}">
+          <input class="item-check" type="checkbox" ${i.comprado ? 'checked' : ''} data-id="${i.id}" />
+          <span class="item-nombre">${esc(i.nombre)}</span>
+          ${i.cantidad ? `<span class="item-cantidad">${i.cantidad} ${i.unidad}</span>` : ''}
+          <button class="btn-edit" data-id="${i.id}">✏️</button>
+          <button class="btn-del"  data-id="${i.id}">✕</button>
+        </div>`
+    }).join('')
+
+    // Checkbox
+    cont.querySelectorAll('.item-check').forEach(cb => {
+      cb.addEventListener('change', async e => {
+        const { error } = await sb.from('lista_compras').update({ comprado: e.target.checked }).eq('id', e.target.dataset.id)
+        if (error) { log(`❌ Error al actualizar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+        log(`✅ Item ${e.target.dataset.id} marcado como ${e.target.checked ? 'comprado' : 'pendiente'}`)
+        globalItems.find(i => i.id === e.target.dataset.id).comprado = e.target.checked
+        e.target.closest('.item').classList.toggle('comprado', e.target.checked)
+        renderStats()
+      })
+    })
+
+    // Botón editar
+    cont.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', e => {
+        editandoId = e.currentTarget.dataset.id
+        render()
+        // Focus en el input de nombre
+        cont.querySelector('.edit-nombre')?.focus()
+      })
+    })
+
+    // Botón guardar
+    cont.querySelectorAll('.btn-save').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const id = e.currentTarget.dataset.id
+        const row = e.currentTarget.closest('.item')
+        const nombre   = row.querySelector('.edit-nombre').value.trim()
+        const cantidad = parseFloat(row.querySelector('.edit-cantidad').value) || null
+        const unidad   = row.querySelector('.edit-unidad').value
+
+        if (!nombre) return mostrarError('El nombre no puede estar vacío')
+        mostrarError('')
+
+        log(`⏳ Guardando cambios en item ${id}...`)
+        const { error } = await sb
+          .from('lista_compras')
+          .update({ nombre, cantidad, unidad: cantidad ? unidad : null })
+          .eq('id', id)
+
+        if (error) {
+          log(`❌ Error al editar: ${error.message} (code: ${error.code})`, false)
+          return mostrarError('Error al guardar: ' + error.message)
+        }
+
+        log(`✅ Item ${id} editado correctamente.`)
+        const item = globalItems.find(i => i.id === id)
+        item.nombre   = nombre
+        item.cantidad = cantidad
+        item.unidad   = cantidad ? unidad : null
+        editandoId = null
+        render()
+        renderStats()
+        toast('✓ Cambios guardados')
+      })
+    })
+
+    // Botón cancelar
+    cont.querySelectorAll('.btn-cancel').forEach(btn => {
+      btn.addEventListener('click', () => { editandoId = null; render() })
+    })
+
+    // Botón eliminar
+    cont.querySelectorAll('.btn-del').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const id = e.currentTarget.dataset.id
+        log(`⏳ Eliminando item ${id}...`)
+        const { error } = await sb.from('lista_compras').delete().eq('id', id)
+        if (error) { log(`❌ Error al eliminar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+        log(`✅ Item ${id} eliminado.`)
+        globalItems = globalItems.filter(i => i.id !== id)
+        if (editandoId === id) editandoId = null
+        render()
+        renderStats()
+      })
+    })
+  }
+
+  function renderStats() {
+    document.getElementById('stat-total').textContent     = globalItems.length
+    document.getElementById('stat-comprados').textContent = globalItems.filter(i => i.comprado).length
+  }
+
+  document.getElementById('btn-agregar').addEventListener('click', async () => {
+    const nombre   = document.getElementById('inp-nombre').value.trim()
+    const cantidad = parseFloat(document.getElementById('inp-cantidad').value) || null
+    const unidad   = document.getElementById('inp-unidad').value
+    if (!nombre) return mostrarError('Escribí el nombre del producto')
+    mostrarError('')
+
+    const btn = document.getElementById('btn-agregar')
+    btn.disabled = true
+    log(`⏳ Insertando "${nombre}"...`)
+
+    const { data, error } = await sb
+      .from('lista_compras')
+      .insert({ user_id: USER_ID, nombre, cantidad, unidad: cantidad ? unidad : null, comprado: false })
+      .select()
+      .single()
+
+    btn.disabled = false
+    if (error) {
+      log(`❌ Error al insertar: ${error.message} (code: ${error.code})`, false)
+      return mostrarError('Error al agregar: ' + error.message)
+    }
+
+    log(`✅ "${nombre}" insertado con id ${data.id}`)
+    globalItems = [data, ...globalItems]
+    render()
+    renderStats()
+    document.getElementById('inp-nombre').value   = ''
+    document.getElementById('inp-cantidad').value = ''
+    document.getElementById('inp-nombre').focus()
+    toast('✓ ' + nombre + ' agregado')
+  })
+
+  document.getElementById('inp-nombre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-agregar').click()
+  })
+
+  document.getElementById('btn-limpiar').addEventListener('click', async () => {
+    const ids = globalItems.filter(i => i.comprado).map(i => i.id)
+    if (!ids.length) return toast('No hay items comprados')
+    log(`⏳ Limpiando ${ids.length} item(s) comprado(s)...`)
+    const { error } = await sb.from('lista_compras').delete().in('id', ids)
+    if (error) { log(`❌ Error al limpiar: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+    log(`✅ ${ids.length} item(s) eliminado(s).`)
+    globalItems = globalItems.filter(i => !i.comprado)
+    render()
+    renderStats()
+    toast(`${ids.length} item(s) eliminado(s)`)
+  })
+
+  document.getElementById('btn-limpiar-todo').addEventListener('click', async () => {
+    if (!globalItems.length) return toast('La lista ya está vacía')
+    if (!confirm(`¿Borrar los ${globalItems.length} item(s)? Esta acción no se puede deshacer.`)) return
+    const ids = globalItems.map(i => i.id)
+    log(`⏳ Eliminando toda la lista (${ids.length} items)...`)
+    const { error } = await sb.from('lista_compras').delete().in('id', ids)
+    if (error) { log(`❌ Error al limpiar todo: ${error.message}`, false); return mostrarError('Error: ' + error.message) }
+    log(`✅ Lista completa eliminada.`)
+    globalItems = []
+    editandoId = null
+    render()
+    renderStats()
+    toast(`🗑 Lista vaciada`)
+  })
+
+  function mostrarError(msg) { document.getElementById('error').textContent = msg }
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+  let toastTimer
+  function toast(msg, isError = false) {
+    const el = document.getElementById('toast')
+    el.textContent = msg
+    el.className = 'show' + (isError ? ' error' : '')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => el.className = '', 2800)
+  }
+
+  cargar()
+</script>
+
+</body>
+</html>
