@@ -1,0 +1,51 @@
+---
+import { createSupabaseClient } from "../lib/supabase";
+
+const supabase = createSupabaseClient(Astro.cookies);
+
+// Si ya está logueado, redirigir
+const { data: { user } } = await supabase.auth.getUser();
+if (user) return Astro.redirect("/dashboard");
+
+let errorMsg = "";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const email = form.get("email")?.toString() ?? "";
+  const password = form.get("password")?.toString() ?? "";
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errorMsg = "Email o contraseña incorrectos";
+  } else {
+    return Astro.redirect("/dashboard");
+  }
+}
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Iniciar sesión</title>
+  </head>
+  <body>
+    <h1>Iniciar sesión</h1>
+
+    {errorMsg && <p style="color:red">{errorMsg}</p>}
+
+    <form method="POST">
+      <label>
+        Email
+        <input type="email" name="email" required />
+      </label>
+      <label>
+        Contraseña
+        <input type="password" name="password" required />
+      </label>
+      <button type="submit">Ingresar</button>
+    </form>
+
+    <p>¿No tenés cuenta? <a href="/register">Registrate</a></p>
+  </body>
+</html>
