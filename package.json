@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/node": "^10.1.2",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.6.0"
+    "eslint": "^10.6.0",
+    "vitest": "^4.1.9"
   }
 }
